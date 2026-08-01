@@ -148,6 +148,23 @@ with tab2:
       except Exception as err:
         st.error("Error Code: ", err)
 
+with tab3:
+  if st.button("Click To Generate PPT", key = "PPT-Button"):
+    with st.spinner("Running Agent"):
+      try:
+        code = run_agent(leader_agent, user_input)
+        st.html(code, width="stretch",unsafe_allow_javascript=True)
+        
+        if st.download_button(label = "DOWNLOAD PPT",
+                              data = code,
+                              file_name = 'ppt.html',
+                              mime = 'text/html'):
+                                
+          st.success("PPT Downloaded Successfully!!")
+        except Exception as err:
+          st.error("Error Code: ", err)
+  
+
 
 
 
