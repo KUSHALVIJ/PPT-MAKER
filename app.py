@@ -102,11 +102,12 @@ def run_agent(leader_agent, query):
   
   
 # leader_agent creation
-leader_agent = create_agent(
-model=model,
-  tools= [search_latest_info,
-       # generate_image])
-       leader_agent
+if all(ALL_API):
+  leader_agent = create_agent(
+  model=model,
+    tools= [search_latest_info,
+            # generate_image])
+         leader_agent
 else:
        st.info("Give API-Keys First to load Agent")
 
