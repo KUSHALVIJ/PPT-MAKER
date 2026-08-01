@@ -89,16 +89,16 @@ def run_agent(leader_agent, query):
   user query given below:
   """
   
-    prompt = prompt + query
-    # prompt = agent_prompt(prompt)
-    response = leader_agent.invoke(
-    {
-    "messages": [
-    {
-      "role": "user",
-      "content": prompt}]})
-    code = response["messages"][-1].content[-1]["text"]
-    return code
+  prompt = prompt + query
+  # prompt = agent_prompt(prompt)
+  response = leader_agent.invoke(
+  {
+  "messages": [
+  {
+    "role": "user",
+    "content": prompt}]})
+  code = response["messages"][-1].content[-1]["text"]
+  return code
   
   
 # leader_agent creation
