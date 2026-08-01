@@ -104,7 +104,7 @@ def run_agent(leader_agent, query):
 # leader_agent creation
 leader_agent = create_agent(
 model=model,
-tools=[search_latest_info,
+  tools= [search_latest_info,
        # generate_image])
        leader_agent
 else:
@@ -119,7 +119,7 @@ tab1, tab2, tab3 = st.tabs([
 
 user_input = st.text_area("Write Prompt & click Enter")
 
-if (user_input) & leader_agent:
+if (user_input):
   with tab1:
     if st.button("Click to Generate Image", key="Image-Button"):
       with st.spinner("Running Agent"):
