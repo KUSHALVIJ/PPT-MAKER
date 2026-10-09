@@ -1,6 +1,8 @@
 
 # ============== STEP 1: LOAD MODULES ==============
 
+import requests
+from urllib.parse import quote
 import streamlit as st
 import requests
 from urllib.parse import quote
@@ -123,29 +125,27 @@ tab1, tab2, tab3 = st.tabs([
 
 # ============== TAB 1: GENERATE IMAGE ==============
 
-with tab1:
-    st.subheader("Generate Image")
 
-    image_prompt = st.text_area(
-        "Describe the image you want",
-        key="image_prompt")
+def generate_image(prompt):
+    """Generate an image from the user's prompt."""
 
-    if st.button("Generate Image", key="image_button"):
-      try:
-        with st.spinner("Generating image..."):
-          image_data = generate_image(image_prompt)
+    if not prompt.strip():
+        raise ValueError("Please enter an image description.")
 
-          st.image(image_data, use_container_width=True)
+    url = "https://image.pollinations.ai/prompt/" + quote(prompt, safe="")
 
-          st.download_button(
-            "Download Image",
-            data=image_data,
-            file_name="generated_image.png",
-            mime="image/png")
-      
-      
-      except Exception as err:
-        st.error(f"Could not generate image: {err}")
+    response = requests.get(url, timeout=120)
+    response.raise_for_status()
+
+    content_type = response.headers.get("Content-Type", "")
+
+    if not content_type.startswith("image/"):
+        raise ValueError(
+            "The image service did not return an image. "
+            "Please try again later.")
+
+    return response.content
+
 
 
 # ============== TAB 2: FETCH NEWS ==============
