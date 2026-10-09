@@ -1,169 +1,233 @@
-# ============== STEP 1 LOAD MODULES=========
-import os
-import time
-import langchain
-from langchain.agents import create_agent
-from langchain_groq import ChatGroq
-from langchain_google_genai import ChatGoogleGenerativeAI
-import pytesseract as pyt
-from tavily import TavilyClient
-import numpy as np
+
+# ============== STEP 1: LOAD MODULES ==============
+
 import streamlit as st
+import requests
+from urllib.parse import quote
+from tavily import TavilyClient
+from langchain_google_genai import ChatGoogleGenerativeAI
 
-# ============== STEP 2 LOAD ENV and API KEYS=========
 
-st.title("Agentic PPT Generator")
-st.header("""User can generate, PPT,Images, and fetch latest news""")
+# ============== STEP 2: API KEYS ==============
+
+st.set_page_config(page_title="PPT Maker", page_icon="📊", layout="wide")
+
+st.title("AI Presentation and News Generator")
+st.write("Generate images, search for news and create presentations.")
 
 st.sidebar.title("Give API Keys")
 
-GOOGLE_API_KEY = st.sidebar.text_input("GOOGLE_API_KEY",type="password")
-TAVILY_API_KEY = st.sidebar.text_input("TAVILY_API_KEY",type="password")
+GOOGLE_API_KEY = st.sidebar.text_input("GOOGLE_API_KEY", type="password")
 
-ALL_API = [GOOGLE_API_KEY,TAVILY_API_KEY]
+TAVILY_API_KEY = st.sidebar.text_input("TAVILY_API_KEY", type="password")
 
-if not all(ALL_API):
-  st.sidebar.error("Must Pass All API-Keys")
-  url = "https://aistudio.google.com/api-keys"
-  st.markdown(f"Get Google AP key-{url}")  
-  url = "https://app.tavily.com/playground"
-  st.markdown(f"Get Tavily AP key-{url}")
+if not GOOGLE_API_KEY:
+  st.sidebar.info("Enter your Google API key to generate presentations.")
 
-elif all(ALL_API):
-  st.success("API KEYS LOADED") 
-  options = [
-    "gemini-3.5-flash-lite",
-    "gemini-3.5-flash",
-    "gemini-2.5-flash-lite", 
-    "gemini-2.5-flash"]
+if not TAVILY_API_KEY:
+  st.sidebar.info("Enter your Tavily API key to search for news.")
+
+
+# ============== STEP 3: BACKEND FUNCTIONS ==============
+
+def generate_image(prompt):
+  """Generate an image from the user's prompt."""
   
-  selected_model = st.selectbox("Select-Model", options=options)
-  
-  model = ChatGoogleGenerativeAI(
-    model=selected_model,
-    google_api_key=GOOGLE_API_KEY)
+  if not prompt.strip():
+    raise ValueError("Please enter an image description.")
+    
+    url = "https://image.pollinations.ai/prompt/" + quote(prompt, safe="")
 
+    response = requests.get(url, timeout=120)
+    response.raise_for_status()
 
-else:
-  st.sidebar.info("Try Valid API-Keys")
+    if not response.headers.get("Content-Type", "").startswith("image/"):
+      raise ValueError("The image service did not return an image.")
+      
+      
+      return response.content
 
-# ============== STEP 3 BACKEND=========
-
-# Search_latest_info using tavily
 
 def search_latest_info(query):
-  """This function helps to give
-  latest search using tavily
-  based on given user query related research or
-  contents"""
-  
-  client = TavilyClient(api_key=TAVILY_API_KEY)
-  response = client.search(query)
-  return response
-
-def generate_image(img_prompt, slide_no=1):
-  """This function helps user to generate
-  image using free api, with given
-  img_prompt, with slide no"""
-  
-  url = f"https://image.pollinations.ai/{img_prompt}"
-
-  import requests as r
-  content = r.get(url).content
-
-  with open(f"ai_image_{slide_no}.jpeg", "wb") as f:
-    f.write(content)
-  return url
-
-def run_agent(leader_agent, query):
-  prompt = f"""Based on Below given Query,
-  your task is to call specific tool, first to
-  promptify user prompt, than call image tool, or
-  latest search if required.give slide dynamic, ui ux,
-  with creative design, keep help of function to generate image
-  based on given topic,
-  Generate image using
-  with number of slide asked, and use time sleep to hit image request on server
-  and using file handling embed this in output html, use java script function
-  give Final response output in HTML, no markdowns
-  user query given below:
-  """
-  
-  prompt = prompt + query
-  # prompt = agent_prompt(prompt)
-  response = leader_agent.invoke(
-  {
-  "messages": [
-  {
-    "role": "user",
-    "content": prompt}]})
-  code = response["messages"][-1].content[-1]["text"]
-  return code
+  """Search for recent news using Tavily."""
   
   
-# leader_agent creation
-if all(ALL_API):
-  leader_agent = create_agent(
-  model=model,
-    tools= [search_latest_info,
-            # generate_image
-           ])
-  leader_agent
-else:
-       st.info("Give API-Keys First to load Agent")
+  if not TAVILY_API_KEY:
+    raise ValueError("Please enter your Tavily API key.")
 
-#---------------------Step 4 STREAMLIT NAVBARS ---------------------
+  if not query.strip():
+    raise ValueError("Please enter a topic to search.")
+    
+    client = TavilyClient(api_key=TAVILY_API_KEY)
+    
+    
+    return client.search(query=query,topic="news",max_results=5)
+
+def generate_ppt(prompt):
+  """Generate an HTML presentation using Gemini."""
+  
+  
+  if not GOOGLE_API_KEY:
+    raise ValueError("Please enter your Google API key.")
+
+  if not prompt.strip():
+    raise ValueError("Please enter a presentation topic.")
+
+    model = ChatGoogleGenerativeAI(model="gemini-2.5-flash",google_api_key=GOOGLE_API_KEY)
+    
+    
+    
+    instructions = """
+    Create a complete HTML presentation based on the user's topic.
+
+    Include:
+    - A professional design with a consistent colour theme.
+    - Clear headings and short bullet points.
+    - Well-organised slides with useful information.
+    - Previous and next buttons to move between slides.
+    - Slide numbers and keyboard navigation.
+    - Sources for factual claims when available.
+
+    Return the complete HTML document only.
+    Do not use Markdown code fences.
+    Do not invent statistics or sources.
+    """
+
+    response = model.invoke(instructions + "\n\nPresentation topic:\n" + prompt)
+    
+    
+    
+    code = response.content
+
+    if isinstance(code, list):
+      code = "\n".join(
+        item.get("text", "")
+        for item in code
+        if isinstance(item, dict) and item.get("type") == "text")
+      
+      
+      if not isinstance(code, str) or "<html" not in code.lower():
+        raise ValueError("Could not generate a complete HTML presentation.")
+        
+        
+      return code
+
+
+# ============== STEP 4: APPLICATION TABS ==============
 
 tab1, tab2, tab3 = st.tabs([
-  "Generate Image",
-  "Fetch News",
-  "Generate PPT"])
+    "Generate Image",
+    "Fetch News",
+    "Generate PPT"])
 
-user_input = st.text_area("Write Prompt & click Enter")
 
-if (user_input):
-  with tab1:
-    if st.button("Click to Generate Image", key="Image-Button"):
-      with st.spinner("Running Agent"):
-        try:
-          url = generate_image(user_input)
-          import requests as r
-          img_data = r.get(url)
-          st.image(url)
-        except Exception as err:
-          st.error("Error Code: ", err)
+# ============== TAB 1: GENERATE IMAGE ==============
+
+with tab1:
+    st.subheader("Generate Image")
+
+    image_prompt = st.text_area(
+        "Describe the image you want",
+        key="image_prompt")
+
+    if st.button("Generate Image", key="image_button"):
+      try:
+        with st.spinner("Generating image..."):
+          image_data = generate_image(image_prompt)
+
+          st.image(image_data, use_container_width=True)
+
+          st.download_button(
+            "Download Image",
+            data=image_data,
+            file_name="generated_image.png",
+            mime="image/png")
+      
+      
+      except Exception as err:
+        st.error(f"Could not generate image: {err}")
+
+
+# ============== TAB 2: FETCH NEWS ==============
 
 with tab2:
-  if st.button("Fetch Latest News", key = "News-Button"):
-    with st.spinner("Running Agent"):
-      try:
-        prompt = """Give Latest News Related to Given user Query
-        in Dynamic HTML, Output with cards Design Format.
-        Strict HTML Output, No Any markdowns Repsonse
-        User Query: """ + user_input
+  st.subheader("Latest News")
+  
+  
+  news_query = st.text_input("Enter a topic",
+                             value="Latest AWS, Microsoft Azure and Google Cloud news")
+  
+  if st.button("Fetch Latest News", key="news_button"):
+    try:
+      with st.spinner("Searching for news..."):
+        response = search_latest_info(news_query)
+        articles = response.get("results", [])
         
-        response = leader_agent.invoke({'messages':[{'role':'user',
-                                                     'content':prompt}]})
         
-        code = response['messages'][-1].content[-1]['text']
-        st.html(code, width="stretch",unsafe_allow_javascript=True)
-      except Exception as err:
-        st.error("Error Code: ", err)
+        
+        if not articles:
+          st.info("No articles found. Try another topic.")
+          
+          for article in articles:
+            title = article.get("title", "Untitled article")
+            summary = article.get("content", "No summary available.")
+            link = article.get("url", "")
+            date = article.get("published_date") or "Date unavailable"
+            
+            
+            with st.container(border=True):
+              st.subheader(title)
+              st.caption(f"Published: {date}")
+              st.write(summary)
+              
+              
+              if link.startswith(("https://", "http://")):
+                st.link_button("Read Article", link)
+    
+    except Exception as err:
+      st.error(f"Could not fetch news: {err}")
+
+
+# ============== TAB 3: GENERATE PPT ==============
 
 with tab3:
-  if st.button("Click To Generate PPT", key = "PPT-Button"):
-    with st.spinner("Running Agent"):
-      try:
-        code = run_agent(leader_agent, user_input)
-        st.html(code, width="stretch",unsafe_allow_javascript=True)
+  st.subheader("Generate Presentation")
+  
+  user_input = st.text_area(
+    "Write your presentation topic and requirements",
+    key="ppt_prompt")
+  
+  
+  if st.button("Generate PPT", key="ppt_button"):
+    try:
+      with st.spinner("Creating your presentation..."):
+        code = generate_ppt(user_input)
         
-        if st.download_button(label = "DOWNLOAD PPT",
-                              data = code,
-                              file_name = 'ppt.html',
-                              mime = 'text/html'):
-                                st.success("PPT Downloaded Successfully!!")
-      except Exception as err:
-        st.error("Error Code: ", err)
+        
+        st.session_state["ppt_code"] = code
+    
+    except Exception as err:
+      st.error(f"Could not generate presentation: {err}")
+
+    if st.session_state.get("ppt_code"):
+      code = st.session_state["ppt_code"]
+      
+      
+      st.success("Presentation generated successfully.")
+      
+      
+      st.download_button(
+        "Download Presentation",
+        data=code,
+        file_name="presentation.html",
+        mime="text/html")
+      
+      
+      st.components.v1.html(
+        code,
+        height=700,
+        scrolling=True)
+
   
 
 
